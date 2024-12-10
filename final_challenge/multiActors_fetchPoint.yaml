@@ -1,0 +1,10 @@
+agents:
+  - name: "1"
+    start: [9, 9]
+    goal1: [9, 6]
+    goal2: [3, 0]
+
+  - name: "2"
+    start: [0, 9]
+    goal1: [0, 6]
+    goal2: [6, 0]
