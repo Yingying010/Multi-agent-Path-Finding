@@ -271,8 +271,7 @@ class RRT:
         for node in self.node_list:
             if node.parent is not None:
                 if node.x or node.y is not None:
-                    plt.plot([node.x, self.node_list[node.parent].x], [
-                        node.y, self.node_list[node.parent].y], "-g")
+                    plt.plot([node.x, self.node_list[node.parent].x], [node.y, self.node_list[node.parent].y], "-g")
         
         for (ox_min, oy_min, ox_max, oy_max) in self.obstacle_list:
             rect = plt.Rectangle((ox_min, oy_min), ox_max - ox_min, oy_max - oy_min, color="black", fill=True)

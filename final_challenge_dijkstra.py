@@ -6,7 +6,7 @@ import pybullet_data
 import yaml
 import heapq
 import math
-from dijkstra_planner import run as dijkstra_run
+from dijkstra_cbs import run as dijkstra_run
 import threading
 
 # 生成栅格地图
@@ -19,39 +19,6 @@ def create_grid_map(dimensions, obstacles, resolution=1.0):
         if 0 <= x < width and 0 <= y < height:
             grid[x, y] = 1  # 将障碍物标记为1
     return grid
-
-# Dijkstra算法
-def dijkstra(grid, start, goal):
-    """使用 Dijkstra 算法在网格地图中寻找最短路径"""
-    rows, cols = grid.shape
-    visited = set()
-    queue = []
-    heapq.heappush(queue, (0, start))  # 优先队列，(cost, (x, y))
-    came_from = {}  # 记录路径
-
-    while queue:
-        cost, current = heapq.heappop(queue)
-        if current in visited:
-            continue
-        visited.add(current)
-
-        if current == goal:
-            path = []
-            while current in came_from:
-                path.append(current)
-                current = came_from[current]
-            path.reverse()
-            return path
-
-        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:  # 四方向邻居
-            neighbor = (current[0] + dx, current[1] + dy)
-            if 0 <= neighbor[0] < rows and 0 <= neighbor[1] < cols and grid[neighbor] == 0:
-                new_cost = cost + 1
-                if neighbor not in visited:
-                    heapq.heappush(queue, (new_cost, neighbor))
-                    came_from[neighbor] = current
-
-    return None  # 未找到路径
 
 def checkPosWithBias(Pos, goal, bias):
     """
@@ -73,26 +40,6 @@ def checkPosWithBias(Pos, goal, bias):
         return True
     else:
         return False
-
-def searchSchedule(start, goal, obstacles, dimensions):
-    schedule = []
-    grid = create_grid_map(dimensions, obstacles, resolution=1.0)
-    start_grid = (int(start[0]), int(start[1]))
-    goal_grid = (int(goal[0]), int(goal[1]))
-
-    if grid[start_grid] == 1 or grid[goal_grid] == 1:
-        print("Start or goal is inside an obstacle!")
-        return
-
-    schedule = dijkstra(grid, start_grid, goal_grid)
-
-    if schedule is None:
-        print("No path found!")
-        return
-
-    print(f"Path found: {schedule}")
-    return schedule
-
 
 
 # 机器人导航

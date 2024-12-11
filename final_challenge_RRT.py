@@ -5,88 +5,7 @@ import yaml
 from cbs import cbs
 import math
 import threading
-
-import random
-
-class RRT:
-    def __init__(self, start, goal, obstacles, rand_area, expand_dis=1.0, max_iter=500):
-        self.start = Node(start[0], start[1])
-        self.goal = Node(goal[0], goal[1])
-        self.obstacles = obstacles
-        self.rand_area = rand_area
-        self.expand_dis = expand_dis
-        self.max_iter = max_iter
-        self.node_list = [self.start]
-
-    def planning(self):
-        for _ in range(self.max_iter):
-            rnd = self.get_random_point()
-            nearest_node = self.get_nearest_node(self.node_list, rnd)
-            new_node = self.steer(nearest_node, rnd)
-
-            if self.check_collision(new_node, nearest_node):
-                self.node_list.append(new_node)
-
-                if self.is_near_goal(new_node):
-                    final_node = self.steer(new_node, [self.goal.x, self.goal.y])
-                    if self.check_collision(final_node, new_node):
-                        return self.get_path(final_node)
-        return None
-
-    def get_random_point(self):
-        return [random.uniform(self.rand_area[0], self.rand_area[1]), random.uniform(self.rand_area[0], self.rand_area[1])]
-
-    def get_nearest_node(self, node_list, rnd):
-        return min(node_list, key=lambda node: (node.x - rnd[0]) ** 2 + (node.y - rnd[1]) ** 2)
-
-    def steer(self, from_node, to_point):
-        angle = math.atan2(to_point[1] - from_node.y, to_point[0] - from_node.x)
-        new_node = Node(from_node.x + self.expand_dis * math.cos(angle),
-                        from_node.y + self.expand_dis * math.sin(angle))
-        new_node.parent = from_node
-        return new_node
-
-    def check_collision(self, node, from_node):
-        for obs in self.obstacles:
-            if self.line_intersects_rect([from_node.x, from_node.y], [node.x, node.y], obs):
-                return False
-        return True
-
-    def is_near_goal(self, node):
-        return math.hypot(node.x - self.goal.x, node.y - self.goal.y) <= self.expand_dis
-
-    def get_path(self, goal_node):
-        path = [[self.goal.x, self.goal.y]]
-        while goal_node.parent is not None:
-            path.append([goal_node.x, goal_node.y])
-            goal_node = goal_node.parent
-        path.append([self.start.x, self.start.y])
-        return path[::-1]
-
-    def line_intersects_rect(self, start, end, rect):
-        x1, y1 = start
-        x2, y2 = end
-        ox_min, oy_min, ox_max, oy_max = rect
-        return (
-            self.line_intersects_line(x1, y1, x2, y2, ox_min, oy_min, ox_max, oy_min) or
-            self.line_intersects_line(x1, y1, x2, y2, ox_min, oy_max, ox_max, oy_max) or
-            self.line_intersects_line(x1, y1, x2, y2, ox_min, oy_min, ox_min, oy_max) or
-            self.line_intersects_line(x1, y1, x2, y2, ox_max, oy_min, ox_max, oy_max)
-        )
-
-    def line_intersects_line(self, x1, y1, x2, y2, x3, y3, x4, y4):
-        def ccw(a, b, c):
-            return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
-        return (ccw((x1, y1), (x3, y3), (x4, y4)) != ccw((x2, y2), (x3, y3), (x4, y4)) and
-                ccw((x1, y1), (x2, y2), (x3, y3)) != ccw((x1, y1), (x2, y2), (x4, y4)))
-
-
-class Node:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.parent = None
-
+from rrt_cbs import run as rrt_run
 
 
 def create_boundaries(length, width):
@@ -335,6 +254,7 @@ def run(agents, goals, schedule):
         t.join()
 
 
+
 # physics_client = p.connect(p.GUI, options='--width=1920 --height=1080 --mp4=multi_3.mp4 --mp4fps=30')
 physics_client = p.connect(p.GUI)
 p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -352,7 +272,7 @@ env_loaded = False
 env_params = create_env("./final_challenge/env.yaml")
 
 # Create turtlebots
-agent_box_ids, agent_name_to_box_id, box_id_to_goal, agent_yaml_params = create_agents("./final_challenge/singleActor_noFetchPoint.yaml")
+agent_box_ids, agent_name_to_box_id, box_id_to_goal, agent_yaml_params = create_agents("./final_challenge/multiActors_noFetchPoint.yaml")
 
 p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
 p.setRealTimeSimulation(1)
@@ -360,26 +280,14 @@ p.setGravity(0, 0, -10)
 p.resetDebugVisualizerCamera(cameraDistance=5.7, cameraYaw=0, cameraPitch=-89.9,
                                      cameraTargetPosition=[4.5, 4.5, 4])
 
+rrt_run(dimensions=env_params["map"]["dimensions"], obstacles=env_params["map"]["obstacles"], agents=agent_yaml_params["agents"], out_file="final_challenge/rrt_output.yaml")
+cbs_schedule = read_cbs_output("final_challenge/rrt_output.yaml")
 
-paths = {}
-for agent in agent_yaml_params["agents"]:
-    start = agent["start"]
-    goal = agent["goal"]
-    rrt = RRT(start, goal, env_params["map"]["obstacles"], rand_area=[0, env_params["map"]["dimensions"][0]])
-    path = rrt.planning()
-    if path:
-        paths[agent["name"]] = [{"x": p[0], "y": p[1]} for p in path]
-        output = dict()
-        output["schedule"] = path
-        with open("./final_challenge/RRT_output.yaml", 'w') as output_yaml:
-            yaml.safe_dump(output, output_yaml)
-    else:
-        print(f"Agent {agent['name']} could not find a path!")
-# cbs_schedule = read_cbs_output("./final_challenge/cbs_output_noFetchPoint_singleAgent.yaml")
-# Replace agent name with box id in cbs_schedule
-# box_id_to_schedule = {}
-# for name, value in cbs_schedule.items():
-#     box_id_to_schedule[agent_name_to_box_id[name]] = value
+print(f"schedule:{cbs_schedule}")
 
-# run(agent_box_ids, box_id_to_goal, box_id_to_schedule)
+box_id_to_schedule = {}
+for name, value in cbs_schedule.items():
+    box_id_to_schedule[agent_name_to_box_id[name]] = value
+
+run(agent_box_ids, box_id_to_goal, box_id_to_schedule)
 time.sleep(2)

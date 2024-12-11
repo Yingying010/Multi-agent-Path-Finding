@@ -149,6 +149,8 @@ class RRT:
  
     @staticmethod
     def get_nearest_list_index(nodes, rnd):
+        print(f"nodes:{nodes}")
+        # print(f"nodes.x:{nodes.x}")
         dList = [(node.x - rnd[0]) ** 2
                  + (node.y - rnd[1]) ** 2 for node in nodes]
         minIndex = dList.index(min(dList))
