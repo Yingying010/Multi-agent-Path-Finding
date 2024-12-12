@@ -422,7 +422,7 @@ class RRTGrid:
             nearestNode = self.node_list[n_ind]
 
             theta = math.atan2(rnd[1] - nearestNode.col, rnd[0] - nearestNode.row)
-            newNode = self.get_new_node(theta, n_ind, nearestNode)
+            newNode = self.get_new_node(rnd, nearestNode)
 
 
             noCollision = self.check_segment_collision(newNode.row, newNode.col, nearestNode.row, nearestNode.col)
@@ -450,19 +450,55 @@ class RRTGrid:
         minIndex = dList.index(min(dList))
         return minIndex
     
-    def get_new_node(self, theta, n_ind, nearestNode):
-        newNode = copy.deepcopy(nearestNode)
+    # def get_new_node(self, theta, n_ind, nearestNode):
+    #     newNode = copy.deepcopy(nearestNode)
  
-        newNode.row += self.expand_dis * math.cos(theta)
-        newNode.col += self.expand_dis * math.sin(theta)
+    #     newNode.row += self.expand_dis * math.cos(theta)
+    #     newNode.col += self.expand_dis * math.sin(theta)
 
-        # 将坐标取整为整数
-        newNode.row = round(newNode.row)
-        newNode.col = round(newNode.col)
+    #     # 将坐标取整为整数
+    #     newNode.row = round(newNode.row)
+    #     newNode.col = round(newNode.col)
  
-        newNode.cost += self.expand_dis
-        newNode.parent = n_ind
-        return newNode
+    #     newNode.cost += self.expand_dis
+    #     newNode.parent = n_ind
+    #     return newNode
+    
+    
+    def get_new_node(self, rnd, nearest_node):
+        """
+        Generate a new node that moves horizontally or vertically
+        from the nearest node to the random point.
+
+        Args:
+            rnd (tuple): Randomly sampled point (row, col).
+            nearest_node (Node): Nearest node in the current tree.
+
+        Returns:
+            Node: A new node.
+        """
+        new_node = copy.deepcopy(nearest_node)
+
+        # Calculate row and column differences
+        row_diff = rnd[0] - nearest_node.row
+        col_diff = rnd[1] - nearest_node.col
+
+        # Move in the dominant direction (horizontal or vertical)
+        if abs(row_diff) > abs(col_diff):
+            # Move vertically
+            new_node.row += self.expand_dis * (1 if row_diff > 0 else -1)
+        else:
+            # Move horizontally
+            new_node.col += self.expand_dis * (1 if col_diff > 0 else -1)
+
+        # Round the new position to ensure it's an integer
+        new_node.row = round(new_node.row)
+        new_node.col = round(new_node.col)
+
+        new_node.cost += self.expand_dis
+        new_node.parent = self.node_list.index(nearest_node)  # Set parent
+        return new_node
+
     
     def get_path_len(self, path):
         pathLen = 0
@@ -494,7 +530,7 @@ class RRTGrid:
             path.append([node.row, node.col])
             lastIndex = node.parent
         path.append([self.start.row, self.start.col])
-        return path
+        return path[::-1]  # 反转路径顺序
     
 
     def check_segment_collision(self, x1, y1, x2, y2):
@@ -704,12 +740,37 @@ def rotate_coordinates(coords, angle_degrees, grid_shape):
 
     return rotated_coords
 
+def flip_coordinates_horizontally(obstacles, grid_shape):
+    """
+    Flip the obstacle coordinates horizontally.
+
+    Args:
+        obstacles (list of tuples): List of (x, y) coordinates of obstacles.
+        grid_shape (tuple): Shape of the grid (rows, cols).
+
+    Returns:
+        list of tuples: Horizontally flipped coordinates.
+    """
+    flipped_obstacles = [(grid_shape[1] - 1 - x, y) for x, y in obstacles]
+    return flipped_obstacles
+
+def swap_xy_in_path(path):
+    """
+    Swap x and y coordinates in the given path.
+
+    Args:
+        path (list of lists): Original path where each point is [y, x].
+
+    Returns:
+        list of lists: Path with coordinates swapped to [x, y].
+    """
+    return [[point[1], point[0]] for point in path]
 
 
 def RRTrun(env, agent_name):
     # Define map size and obstacle points
     # 网格尺寸
-    env_params = create_env("./final_challenge/env.yaml")
+    env_params = create_env("environment/env.yaml")
     dimensions = env_params["map"]["dimensions"]
     obstacles=env_params["map"]["obstacles"]
     grid_shape = (dimensions[0], dimensions[1])
@@ -722,13 +783,14 @@ def RRTrun(env, agent_name):
     goal = (goal_state.y, goal_state.x)
 
     # 旋转障碍物坐标90度
-    rotated_obstacles = rotate_coordinates(obstacles, 270, grid_shape)
+    rotated_obstacles = rotate_coordinates(obstacles, 90, grid_shape)
+    flipped_obstacles = flip_coordinates_horizontally(rotated_obstacles, grid_shape)
 
     # Generate grid map
-    grid_map = gridify_map_with_points(dimensions[0], dimensions[1], cell_size, rotated_obstacles)
+    grid_map = gridify_map_with_points(dimensions[0], dimensions[1], cell_size, flipped_obstacles)
 
     # Run RRT on the grid
-    rrt = RRTGrid(grid_map, rotated_obstacles, start, goal, max_iter=500)
+    rrt = RRTGrid(grid_map, flipped_obstacles, start, goal, max_iter=500)
     path = rrt.plan()
 
     if path:
@@ -741,8 +803,6 @@ def RRTrun(env, agent_name):
         plt.show()
     return path
 
-if __name__ == '__main__':
-    RRTrun()
 
     
 

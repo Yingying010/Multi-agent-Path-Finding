@@ -6,7 +6,12 @@ import pybullet_data
 import yaml
 import heapq
 import math
-from dijkstra_cbs import run as dijkstra_run
+
+import os
+import sys
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+from finalChallenge_dijkstra.dijkstra_cbs import run as dijkstra_run
 import threading
 
 # 生成栅格地图
@@ -89,15 +94,15 @@ def navigation(agent, goal, schedule):
 # 创建边界
 def create_boundaries(length, width):
     for i in range(length):
-        p.loadURDF("cube.urdf", [i, -1, 0.5])
-        p.loadURDF("cube.urdf", [i, width, 0.5])
+        p.loadURDF("assets/cube.urdf", [i, -1, 0.5])
+        p.loadURDF("assets/cube.urdf", [i, width, 0.5])
     for i in range(width):
-        p.loadURDF("cube.urdf", [-1, i, 0.5])
-        p.loadURDF("cube.urdf", [length, i, 0.5])
-    p.loadURDF("cube.urdf", [length, -1, 0.5])
-    p.loadURDF("cube.urdf", [length, width, 0.5])
-    p.loadURDF("cube.urdf", [-1, width, 0.5])
-    p.loadURDF("cube.urdf", [-1, -1, 0.5])
+        p.loadURDF("assets/cube.urdf", [-1, i, 0.5])
+        p.loadURDF("assets/cube.urdf", [length, i, 0.5])
+    p.loadURDF("assets/cube.urdf", [length, -1, 0.5])
+    p.loadURDF("assets/cube.urdf", [length, width, 0.5])
+    p.loadURDF("assets/cube.urdf", [-1, width, 0.5])
+    p.loadURDF("assets/cube.urdf", [-1, -1, 0.5])
 
 # 创建环境
 def create_env(yaml_file):
@@ -131,7 +136,6 @@ def create_agents(yaml_file):
         agent_ids[agent["name"]] = box_id
     return agent_ids, agent_starts, agent_goals, agent_yaml_params
 
-
 def read_cbs_output(file):
     """
         Read file from output.yaml, store path list.
@@ -151,18 +155,8 @@ def read_cbs_output(file):
             print(exc)
     return params["schedule"]
 
-def run_multi_theads(agents, goals, schedule):
-    """
-        Set up loop to publish leftwheel and rightwheel velocity for each robot to reach goal position.
 
-        Args:
-
-        agents: array containing the boxID for each agent
-
-        schedule: dictionary with boxID as key and path to the goal as list for each robot.
-
-        goals: dictionary with boxID as the key and the corresponding goal positions as values
-    """
+def run(agents, goals, schedule):
     threads = []
     for agent in agents.values():
         t = threading.Thread(target=navigation, args=(agent, goals[agent], schedule[agent]))
@@ -174,52 +168,50 @@ def run_multi_theads(agents, goals, schedule):
 
 
 
+# physics_client = p.connect(p.GUI, options='--width=1920 --height=1080 --mp4=Robot2_finalChanllege_dijkstra.mp4 --mp4fps=15')
+physics_client = p.connect(p.GUI)
+p.setAdditionalSearchPath(pybullet_data.getDataPath())
+p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
+p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
+# Disable tinyrenderer, software (CPU) renderer, we don't use it here
+p.configureDebugVisualizer(p.COV_ENABLE_TINY_RENDERER, 0)
 
-# 主函数
-def main():
-    # physics_client = p.connect(p.GUI, options='--width=1920 --height=1080 --mp4=Robot2_finalChanllege_dijkstra.mp4 --mp4fps=15')
-    physics_client = p.connect(p.GUI)
-    p.setAdditionalSearchPath(pybullet_data.getDataPath())
-    p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
-    p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
-    # Disable tinyrenderer, software (CPU) renderer, we don't use it here
-    p.configureDebugVisualizer(p.COV_ENABLE_TINY_RENDERER, 0)
+plane_id = p.loadURDF("plane.urdf")
 
-    plane_id = p.loadURDF("plane.urdf")
+global env_loaded
+env_loaded = False
 
-    global env_loaded
-    env_loaded = False
+env_params = create_env("environment/env.yaml")
 
-    env_params, obstacles = create_env("final_challenge/env.yaml")
-    dimensions = env_params["map"]["dimensions"]
-    obstacles = np.array(env_params["map"]["obstacles"])
+agent_ids, agent_starts, agent_goals, agent_yaml_params = create_agents("environment/multiActors_noFetchPoint.yaml")
 
-    agent_ids, agent_starts, agent_goals, agent_yaml_params = create_agents(r"F:\turtlebot_simulation1\final_challenge\multiActors_noFetchPoint.yaml")
-    print(agent_ids)
-    print(agent_starts)
-    print(agent_goals)
+p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
+p.setRealTimeSimulation(1)
+p.setGravity(0, 0, -10)
+p.resetDebugVisualizerCamera(cameraDistance=5.7, cameraYaw=0, cameraPitch=-89.9,
+                                    cameraTargetPosition=[4.5, 4.5, 4])
 
+map_params, extra_obstacles = env_params  # 解包元组
 
-    p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
-    p.setRealTimeSimulation(1)
-    p.setGravity(0, 0, -10)
-    p.resetDebugVisualizerCamera(cameraDistance=5.7, cameraYaw=0, cameraPitch=-89.9,
-                                        cameraTargetPosition=[4.5, 4.5, 4])
+dimensions = map_params["map"]["dimensions"]
+obstacles = map_params["map"]["obstacles"] + extra_obstacles  # 合并障碍物
+# 获取output.yaml
+dijkstra_run(
+    dimensions=dimensions,
+    obstacles=obstacles,
+    agents=agent_yaml_params["agents"],
+    out_file="finalChallenge_dijkstra/output/dijkstra_output.yaml",
+)
+cbs_schedule = read_cbs_output("finalChallenge_dijkstra/output//dijkstra_output.yaml")
 
-    # 获取output.yaml
-    dijkstra_run(dimensions=env_params["map"]["dimensions"], obstacles=env_params["map"]["obstacles"], agents=agent_yaml_params["agents"], out_file="final_challenge/dijkstra_output.yaml")
-    schedule = read_cbs_output("final_challenge/dijkstra_output.yaml")
+print(f"schedule:{cbs_schedule}")
 
-    print(f"schedule:{schedule}")
+agent_schedules = {}
+for name, value in cbs_schedule.items():
+    print(name)
+    print(agent_ids[name])
+    agent_schedules[agent_ids[name]] = value
 
-    agent_schedules = {}
-    for name, value in schedule.items():
-        print(name)
-        print(agent_ids[name])
-        agent_schedules[agent_ids[name]] = value
+run(agent_ids, agent_goals, agent_schedules)
+time.sleep(2)
 
-    run_multi_theads(agent_ids, agent_goals, agent_schedules)
-
-
-if __name__ == "__main__":
-    main()

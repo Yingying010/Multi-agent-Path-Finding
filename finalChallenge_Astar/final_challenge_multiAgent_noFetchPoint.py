@@ -2,10 +2,13 @@ import pybullet as p
 import time
 import pybullet_data
 import yaml
-from cbs import cbs
+import sys
+import os
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+import cbs.cbs as cbs
 import math
 import threading
-from rrt_cbs import run as rrt_run
 
 
 def create_boundaries(length, width):
@@ -19,15 +22,15 @@ def create_boundaries(length, width):
         width: integer
     """
     for i in range(length):
-        p.loadURDF("./final_challenge/assets/cube.urdf", [i, -1, 0.5])
-        p.loadURDF("./final_challenge/assets/cube.urdf", [i, width, 0.5])
+        p.loadURDF("assets/cube.urdf", [i, -1, 0.5])
+        p.loadURDF("assets/cube.urdf", [i, width, 0.5])
     for i in range(width):
-        p.loadURDF("./final_challenge/assets/cube.urdf", [-1, i, 0.5])
-        p.loadURDF("./final_challenge/assets/cube.urdf", [length, i, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [length, -1, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [length, width, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [-1, width, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [-1, -1, 0.5])
+        p.loadURDF("assets/cube.urdf", [-1, i, 0.5])
+        p.loadURDF("assets/cube.urdf", [length, i, 0.5])
+    p.loadURDF("assets/cube.urdf", [length, -1, 0.5])
+    p.loadURDF("assets/cube.urdf", [length, width, 0.5])
+    p.loadURDF("assets/cube.urdf", [-1, width, 0.5])
+    p.loadURDF("assets/cube.urdf", [-1, -1, 0.5])
 
 
 def create_env(yaml_file):
@@ -47,7 +50,7 @@ def create_env(yaml_file):
 
     # Create env obstacles
     for obstacle in env_params["map"]["obstacles"]:
-        p.loadURDF("./final_challenge/assets/cube.urdf", [obstacle[0], obstacle[1], 0.5])
+        p.loadURDF("assets/cube.urdf", [obstacle[0], obstacle[1], 0.5])
     return env_params
 
 
@@ -175,18 +178,6 @@ def navigation(agent, goal, schedule):
         y = basePos[0][1]
         Orientation = list(p.getEulerFromQuaternion(basePos[1]))[2]
         goal_direction = math.atan2((schedule[index]["y"] - y), (schedule[index]["x"] - x))
-        
-        if index + 1 < len(schedule):
-            next_target = schedule[index + 1]
-            next_direction = math.atan2(next_target["y"] - schedule[index]["y"], next_target["x"] - schedule[index]["x"])
-            turn_angle = abs(next_direction - goal_direction)
-
-            if turn_angle > math.pi:
-                turn_angle = 2 * math.pi - turn_angle
-        else:
-            turn_angle = 0  
-            
-            
 
         if(Orientation < 0):
             Orientation = Orientation + 2 * math.pi
@@ -201,31 +192,22 @@ def navigation(agent, goal, schedule):
 
         current = [x, y]
         distance = math.dist(current, next)
-        k1, k2 = 50, 20
+        k1, k2 = 30, 15
         linear = k1 * math.cos(theta)
         angular = k2 * theta
         
         max_linear_speed = 50.0 
-        max_angular_speed = 7.0 
+        max_angular_speed = 15.0 
         
-        print(f"angular:{angular} linear{linear}")
-        if abs(angular)>10:
+        if angular>1:
             linear = 5
-            
-        # 在拐弯点减速
-        # print(f"turn_angle:{turn_angle}")
-        if turn_angle > 1.5:
-            linear *= 0.65  # 减速
 
         linear = max(-max_linear_speed, min(max_linear_speed, linear))
         angular = max(-max_angular_speed, min(max_angular_speed, angular))
 
-
         rightWheelVelocity = linear + angular
         leftWheelVelocity = linear - angular
         
-        
-
         p.setJointMotorControl2(agent, 0, p.VELOCITY_CONTROL, targetVelocity=leftWheelVelocity, force=1)
         p.setJointMotorControl2(agent, 1, p.VELOCITY_CONTROL, targetVelocity=rightWheelVelocity, force=1)
         # time.sleep(0.001)
@@ -233,17 +215,6 @@ def navigation(agent, goal, schedule):
 
 
 def run(agents, goals, schedule):
-    """
-        Set up loop to publish leftwheel and rightwheel velocity for each robot to reach goal position.
-
-        Args:
-
-        agents: array containing the boxID for each agent
-
-        schedule: dictionary with boxID as key and path to the goal as list for each robot.
-
-        goals: dictionary with boxID as the key and the corresponding goal positions as values
-    """
     threads = []
     for agent in agents:
         t = threading.Thread(target=navigation, args=(agent, goals[agent], schedule[agent]))
@@ -252,7 +223,6 @@ def run(agents, goals, schedule):
 
     for t in threads:
         t.join()
-
 
 
 # physics_client = p.connect(p.GUI, options='--width=1920 --height=1080 --mp4=multi_3.mp4 --mp4fps=30')
@@ -269,10 +239,10 @@ global env_loaded
 env_loaded = False
 
 # Create environment
-env_params = create_env("./final_challenge/env.yaml")
+env_params = create_env("environment/env.yaml")
 
 # Create turtlebots
-agent_box_ids, agent_name_to_box_id, box_id_to_goal, agent_yaml_params = create_agents("./final_challenge/multiActors_noFetchPoint.yaml")
+agent_box_ids, agent_name_to_box_id, box_id_to_goal, agent_yaml_params = create_agents("environment/multiActors_noFetchPoint.yaml")
 
 p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
 p.setRealTimeSimulation(1)
@@ -280,11 +250,11 @@ p.setGravity(0, 0, -10)
 p.resetDebugVisualizerCamera(cameraDistance=5.7, cameraYaw=0, cameraPitch=-89.9,
                                      cameraTargetPosition=[4.5, 4.5, 4])
 
-rrt_run(dimensions=env_params["map"]["dimensions"], obstacles=env_params["map"]["obstacles"], agents=agent_yaml_params["agents"], out_file="final_challenge/rrt_output.yaml")
-cbs_schedule = read_cbs_output("final_challenge/rrt_output.yaml")
 
+cbs.run(dimensions=env_params["map"]["dimensions"], obstacles=env_params["map"]["obstacles"], agents=agent_yaml_params["agents"], out_file="finalChallenge_Astar/output/cbs_output_noFetchPoint_multiAgent.yaml")
+cbs_schedule = read_cbs_output("finalChallenge_Astar/output/cbs_output_noFetchPoint_multiAgent.yaml")
 print(f"schedule:{cbs_schedule}")
-
+# Replace agent name with box id in cbs_schedule
 box_id_to_schedule = {}
 for name, value in cbs_schedule.items():
     box_id_to_schedule[agent_name_to_box_id[name]] = value

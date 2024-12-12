@@ -2,22 +2,28 @@ import pybullet as p
 import time
 import pybullet_data
 import yaml
-from cbs import cbs
+
 import math
 import threading
+
 import os
+import sys
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+import cbs.cbs as cbs
+
 
 def create_boundaries(length, width):
     for i in range(length):
-        p.loadURDF("./final_challenge/assets/cube.urdf", [i, -1, 0.5])
-        p.loadURDF("./final_challenge/assets/cube.urdf", [i, width, 0.5])
+        p.loadURDF("assets/cube.urdf", [i, -1, 0.5])
+        p.loadURDF("assets/cube.urdf", [i, width, 0.5])
     for i in range(width):
-        p.loadURDF("./final_challenge/assets/cube.urdf", [-1, i, 0.5])
-        p.loadURDF("./final_challenge/assets/cube.urdf", [length, i, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [length, -1, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [length, width, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [-1, width, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [-1, -1, 0.5])
+        p.loadURDF("assets/cube.urdf", [-1, i, 0.5])
+        p.loadURDF("assets/cube.urdf", [length, i, 0.5])
+    p.loadURDF("assets/cube.urdf", [length, -1, 0.5])
+    p.loadURDF("assets/cube.urdf", [length, width, 0.5])
+    p.loadURDF("assets/cube.urdf", [-1, width, 0.5])
+    p.loadURDF("assets/cube.urdf", [-1, -1, 0.5])
 
 def create_env(yaml_file):
     with open(yaml_file, 'r') as f:
@@ -28,7 +34,7 @@ def create_env(yaml_file):
     dimensions = env_params["map"]["dimensions"]
     create_boundaries(dimensions[0], dimensions[1])
     for obstacle in env_params["map"]["obstacles"]:
-        p.loadURDF("./final_challenge/assets/cube.urdf", [obstacle[0], obstacle[1], 0.5])
+        p.loadURDF("assets/cube.urdf", [obstacle[0], obstacle[1], 0.5])
     return env_params
 
 def create_agents(yaml_file):
@@ -149,7 +155,6 @@ def run(agents, goals, schedule, phase_1_lengths):
 
 if __name__ == "__main__":
     import os
-    print("当前目录:", os.getcwd())
 
     # physics_client = p.connect(p.GUI)
     
@@ -166,8 +171,8 @@ if __name__ == "__main__":
 
     plane_id = p.loadURDF("plane.urdf")
 
-    env_params = create_env("./final_challenge/env.yaml")
-    agent_box_ids, agent_name_to_box_id, box_id_to_goal, agent_yaml_params = create_agents("./final_challenge/multiActors_fetchPoint.yaml")
+    env_params = create_env("environment/env.yaml")
+    agent_box_ids, agent_name_to_box_id, box_id_to_goal, agent_yaml_params = create_agents("environment/multiActors_fetchPoint.yaml")
 
     p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
     p.setRealTimeSimulation(1)
@@ -188,8 +193,8 @@ if __name__ == "__main__":
     cbs.run(dimensions=env_params["map"]["dimensions"],
             obstacles=env_params["map"]["obstacles"],
             agents=agents_phase_1,
-            out_file="./final_challenge/cbs_output_phase_1_multi.yaml")
-    cbs_schedule_phase_1 = read_cbs_output("./final_challenge/cbs_output_phase_1_multi.yaml")
+            out_file="finalChallenge_Astar/output/cbs_output_phase_1_multi.yaml")
+    cbs_schedule_phase_1 = read_cbs_output("finalChallenge_Astar/output/cbs_output_phase_1_multi.yaml")
     print("Phase 1 schedule:", cbs_schedule_phase_1)
 
     # 更新起点为goal1
@@ -209,9 +214,9 @@ if __name__ == "__main__":
     cbs.run(dimensions=env_params["map"]["dimensions"],
             obstacles=env_params["map"]["obstacles"],
             agents=agents_phase_2,
-            out_file="./final_challenge/cbs_output_phase_2_multi.yaml")
+            out_file="finalChallenge_Astar/output/cbs_output_phase_2_multi.yaml")
 
-    cbs_schedule_phase_2 = read_cbs_output("./final_challenge/cbs_output_phase_2_multi.yaml")
+    cbs_schedule_phase_2 = read_cbs_output("finalChallenge_Astar/output/cbs_output_phase_2_multi.yaml")
     print("Phase 2 schedule:", cbs_schedule_phase_2)
 
     if not cbs_schedule_phase_2:
@@ -240,7 +245,7 @@ if __name__ == "__main__":
         phase_1_lengths[box_id] = phase_1_length
 
     # 将合并的路径保存到单个 YAML 文件
-    combined_output_file = "./final_challenge/cbs_output_fetchPoint_multiAgent.yaml"
+    combined_output_file = "finalChallenge_Astar/output/cbs_output_fetchPoint_multiAgent.yaml"
     with open(combined_output_file, "w") as f:
         yaml.dump({"schedule": combined_schedule}, f)
 

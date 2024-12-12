@@ -2,9 +2,13 @@ import pybullet as p
 import time
 import pybullet_data
 import yaml
-from cbs import cbs
 import math
 import threading
+import os
+import sys
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+from finalChallenge_RRT.rrt_cbs import run as rrt_run
 
 
 def create_boundaries(length, width):
@@ -18,15 +22,15 @@ def create_boundaries(length, width):
         width: integer
     """
     for i in range(length):
-        p.loadURDF("./final_challenge/assets/cube.urdf", [i, -1, 0.5])
-        p.loadURDF("./final_challenge/assets/cube.urdf", [i, width, 0.5])
+        p.loadURDF("assets/cube.urdf", [i, -1, 0.5])
+        p.loadURDF("assets/cube.urdf", [i, width, 0.5])
     for i in range(width):
-        p.loadURDF("./final_challenge/assets/cube.urdf", [-1, i, 0.5])
-        p.loadURDF("./final_challenge/assets/cube.urdf", [length, i, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [length, -1, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [length, width, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [-1, width, 0.5])
-    p.loadURDF("./final_challenge/assets/cube.urdf", [-1, -1, 0.5])
+        p.loadURDF("assets/cube.urdf", [-1, i, 0.5])
+        p.loadURDF("assets/cube.urdf", [length, i, 0.5])
+    p.loadURDF("assets/cube.urdf", [length, -1, 0.5])
+    p.loadURDF("assets/cube.urdf", [length, width, 0.5])
+    p.loadURDF("assets/cube.urdf", [-1, width, 0.5])
+    p.loadURDF("assets/cube.urdf", [-1, -1, 0.5])
 
 
 def create_env(yaml_file):
@@ -46,7 +50,7 @@ def create_env(yaml_file):
 
     # Create env obstacles
     for obstacle in env_params["map"]["obstacles"]:
-        p.loadURDF("./final_challenge/assets/cube.urdf", [obstacle[0], obstacle[1], 0.5])
+        p.loadURDF("assets/cube.urdf", [obstacle[0], obstacle[1], 0.5])
     return env_params
 
 
@@ -200,31 +204,22 @@ def navigation(agent, goal, schedule):
 
         current = [x, y]
         distance = math.dist(current, next)
-        k1, k2 = 50, 20
+        k1, k2 = 30, 15
         linear = k1 * math.cos(theta)
         angular = k2 * theta
         
         max_linear_speed = 50.0 
-        max_angular_speed = 7.0 
+        max_angular_speed = 15.0 
         
-        print(f"angular:{angular} linear{linear}")
-        if abs(angular)>10:
+        if angular>1:
             linear = 5
-            
-        # 在拐弯点减速
-        # print(f"turn_angle:{turn_angle}")
-        if turn_angle > 1.5:
-            linear *= 0.65  # 减速
 
         linear = max(-max_linear_speed, min(max_linear_speed, linear))
         angular = max(-max_angular_speed, min(max_angular_speed, angular))
 
-
         rightWheelVelocity = linear + angular
         leftWheelVelocity = linear - angular
         
-        
-
         p.setJointMotorControl2(agent, 0, p.VELOCITY_CONTROL, targetVelocity=leftWheelVelocity, force=1)
         p.setJointMotorControl2(agent, 1, p.VELOCITY_CONTROL, targetVelocity=rightWheelVelocity, force=1)
         # time.sleep(0.001)
@@ -251,6 +246,22 @@ def run(agents, goals, schedule):
 
     for t in threads:
         t.join()
+        
+def swap_xy_in_schedule(schedule):
+    """
+    Swap x and y coordinates in the given schedule.
+
+    Args:
+        schedule (dict): Original schedule where each agent's path is a list of dictionaries.
+
+    Returns:
+        dict: New schedule with x and y coordinates swapped.
+    """
+    swapped_schedule = {}
+    for agent, path in schedule.items():
+        swapped_path = [{"t": point["t"], "x": point["y"], "y": point["x"]} for point in path]
+        swapped_schedule[agent] = swapped_path
+    return swapped_schedule
 
 
 # physics_client = p.connect(p.GUI, options='--width=1920 --height=1080 --mp4=multi_3.mp4 --mp4fps=30')
@@ -267,10 +278,10 @@ global env_loaded
 env_loaded = False
 
 # Create environment
-env_params = create_env("./final_challenge/env.yaml")
+env_params = create_env("environment/env.yaml")
 
 # Create turtlebots
-agent_box_ids, agent_name_to_box_id, box_id_to_goal, agent_yaml_params = create_agents("./final_challenge/singleActor_noFetchPoint.yaml")
+agent_box_ids, agent_name_to_box_id, box_id_to_goal, agent_yaml_params = create_agents("environment/multiActors_noFetchPoint.yaml")
 
 p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
 p.setRealTimeSimulation(1)
@@ -278,10 +289,13 @@ p.setGravity(0, 0, -10)
 p.resetDebugVisualizerCamera(cameraDistance=5.7, cameraYaw=0, cameraPitch=-89.9,
                                      cameraTargetPosition=[4.5, 4.5, 4])
 
+rrt_run(dimensions=env_params["map"]["dimensions"], obstacles=env_params["map"]["obstacles"], agents=agent_yaml_params["agents"], out_file="finalChallenge_RRT/output/rrt_output.yaml")
+cbs_schedule = read_cbs_output("finalChallenge_RRT/output/rrt_output.yaml")
 
-cbs.run(dimensions=env_params["map"]["dimensions"], obstacles=env_params["map"]["obstacles"], agents=agent_yaml_params["agents"], out_file="./final_challenge/cbs_output_noFetchPoint_singleAgent.yaml")
-cbs_schedule = read_cbs_output("./final_challenge/cbs_output_noFetchPoint_singleAgent.yaml")
-# Replace agent name with box id in cbs_schedule
+swapped_schedule = swap_xy_in_schedule(cbs_schedule)
+
+print(f"schedule:{swapped_schedule}")
+
 box_id_to_schedule = {}
 for name, value in cbs_schedule.items():
     box_id_to_schedule[agent_name_to_box_id[name]] = value

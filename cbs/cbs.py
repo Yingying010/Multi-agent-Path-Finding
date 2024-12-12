@@ -15,6 +15,8 @@ from copy import deepcopy
 
 from cbs.a_star import AStar
 # from a_star import AStar
+import os
+print("Current working directory:", os.getcwd())
 
 class Location(object):
     def __init__(self, x=-1, y=-1):
